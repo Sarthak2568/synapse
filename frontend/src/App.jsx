@@ -1,30 +1,75 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import * as THREE from 'three';
-import { Chart } from 'chart.js/auto'; // Ensure Chart.js is imported
-import { COLORS, NAV_ITEMS, ACTIVITY_OPTIONS, BOWLING_SPEED, ACTIVITY_BACKEND_HINT } from './utils/constants';
-import { loadScript, clamp, scoreColor, severityRank, angleABC, torsoLeanFromVertical, gradeDeviation, distanceToRange, pickWorseSeverity, statusPill, stabilizePose, drawAnatomyCore, clonePose, fitPoseToCanvas, poseBounds, confidence, inferLiveSquatPhase, sleep } from './utils/poseUtils';
-import { activityConfig, getWorstFrame } from './config/activityConfig';
-import { useCricketSimulation } from './hooks/useCricketSimulation';
-import { Navbar } from './components/layout/Navbar';
-import { Sidebar } from './components/layout/Sidebar';
-import { TinySparkline } from './components/shared/TinySparkline';
-import { CircularScore } from './components/shared/CircularScore';
-import { MetricsCard } from './components/shared/MetricsCard';
-import { FeedbackCard } from './components/shared/FeedbackCard';
-import { SessionModal } from './components/shared/SessionModal';
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import * as THREE from "three";
+import { Chart } from "chart.js/auto"; // Ensure Chart.js is imported
+import {
+  COLORS,
+  NAV_ITEMS,
+  ACTIVITY_OPTIONS,
+  BOWLING_SPEED,
+  ACTIVITY_BACKEND_HINT,
+} from "./utils/constants";
+import {
+  loadScript,
+  clamp,
+  scoreColor,
+  severityRank,
+  angleABC,
+  torsoLeanFromVertical,
+  gradeDeviation,
+  distanceToRange,
+  pickWorseSeverity,
+  statusPill,
+  stabilizePose,
+  drawAnatomyCore,
+  clonePose,
+  fitPoseToCanvas,
+  poseBounds,
+  confidence,
+  inferLiveSquatPhase,
+  sleep,
+} from "./utils/poseUtils";
+import { activityConfig, getWorstFrame } from "./config/activityConfig";
+import { getTechnicalAdvice } from "./utils/coachingCues";
+import { useCricketSimulation } from "./hooks/useCricketSimulation";
+import { Routes, Route } from "react-router-dom";
+import { MainLayout } from "./components/layout/MainLayout";
+import { HomeView } from "./views/HomeView";
+import { LiveAnalyzeView } from "./views/LiveAnalyzeView";
+import { UploadAnalyzeView } from "./views/UploadAnalyzeView";
+import { DashboardView } from "./views/DashboardView";
+import { AboutView } from "./views/AboutView";
 
 const FULL_SKELETON_EDGES = [
-  [0, 1], [0, 2], [1, 3], [2, 4], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
-  [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+  [0, 1],
+  [0, 2],
+  [1, 3],
+  [2, 4],
+  [5, 6],
+  [5, 7],
+  [7, 9],
+  [6, 8],
+  [8, 10],
+  [5, 11],
+  [6, 12],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
 ];
 
 const KEYPOINT_INDEX = {
   nose: 0,
-  left_shoulder: 5, right_shoulder: 6,
-  left_hip: 11, right_hip: 12,
-  left_knee: 13, right_knee: 14,
-  left_ankle: 15, right_ankle: 16,
-  left_wrist: 9, right_wrist: 10,
+  left_shoulder: 5,
+  right_shoulder: 6,
+  left_hip: 11,
+  right_hip: 12,
+  left_knee: 13,
+  right_knee: 14,
+  left_ankle: 15,
+  right_ankle: 16,
+  left_wrist: 9,
+  right_wrist: 10,
 };
 
 // We redefine drawSkeleton here since it relies on FULL_SKELETON_EDGES and statusPill etc.
@@ -46,12 +91,14 @@ function App() {
     balance: 0,
     path: 0,
   });
+  const [referenceMetrics, setReferenceMetrics] = useState(null);
   const [trend, setTrend] = useState({ knee: [], hip: [], back: [] });
   const [liveFeedback, setLiveFeedback] = useState(
     "Ready when you are. Start live analysis to get coaching cues.",
   );
   const [liveConfidence, setLiveConfidence] = useState(0);
   const [repCount, setRepCount] = useState(0);
+  const [coachingLog, setCoachingLog] = useState([]);
 
   const [analysis, setAnalysis] = useState(null);
   const [feedbackItems, setFeedbackItems] = useState([]);
@@ -96,6 +143,14 @@ function App() {
   const lastSampleTsRef = useRef(0);
   const startTsRef = useRef(0);
   const lastRtRef = useRef(null);
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
+
+  const uploadedFramesRef = useRef(null);
+  const [hasGoldenSkeleton, setHasGoldenSkeleton] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareScore, setCompareScore] = useState(null);
+  const pipVideoRef = useRef(null);
+  const pipCanvasRef = useRef(null);
   const timelineDataRef = useRef([]);
   const timelinePlayRef = useRef(false);
   const timelineRafRef = useRef(null);
@@ -108,6 +163,17 @@ function App() {
     lastSwingTs: 0,
     lastTriggerTs: 0,
   });
+
+  useEffect(() => {
+    if (compareMode && hasGoldenSkeleton && pipVideoRef.current && uploadedVideoUrl) {
+      if (pipVideoRef.current.src !== uploadedVideoUrl) {
+        pipVideoRef.current.src = uploadedVideoUrl;
+        pipVideoRef.current.load();
+      }
+      pipVideoRef.current.currentTime = 0;
+      pipVideoRef.current.play().catch(() => {});
+    }
+  }, [compareMode, hasGoldenSkeleton, uploadedVideoUrl]);
 
   const kneeChartRef = useRef(null);
   const trunkChartRef = useRef(null);
@@ -474,6 +540,27 @@ function App() {
     drawSkeleton(ctx, stablePose, 1, jointSeverity, pulse);
   }
 
+function drawReferencePose(videoEl, canvasEl, frame) {
+  if (!videoEl || !canvasEl || !frame?.keypoints) return;
+  const ctx = canvasEl.getContext("2d");
+  const w = videoEl.videoWidth || 640;
+  const h = videoEl.videoHeight || 480;
+  if (canvasEl.width !== w || canvasEl.height !== h) {
+    canvasEl.width = w;
+    canvasEl.height = h;
+  }
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(videoEl, 0, 0, w, h);
+  
+  const scaledPose = {
+    keypoints: frame.keypoints.map(k => ({
+      x: k.x * w,
+      y: k.y * h,
+      score: k.score
+    }))
+  };
+  drawSkeleton(ctx, scaledPose, 1, {}, 0);
+}
   function preprocessActivityFrames(frames, selectedActivity) {
     if (!frames?.length) return [];
     const cfg = activityConfig[selectedActivity] || activityConfig.squat;
@@ -712,6 +799,30 @@ function App() {
     }
 
     s.prev = { x: wrist.x, y: wrist.y, ts: nowTs };
+
+    // New 3D Bat Tracking Data
+    const leftWrist = pose?.keypoints?.[9];
+    const rightWrist = pose?.keypoints?.[10];
+    if (leftWrist && rightWrist) {
+      // Calculate normalized center position (assuming 640x480 default TFJS video feed, will refine in Three.js)
+      const cx = (leftWrist.x + rightWrist.x) / 2;
+      const cy = (leftWrist.y + rightWrist.y) / 2;
+
+      const videoEl = liveVideoRef.current;
+      const vw = videoEl ? videoEl.videoWidth || 640 : 640;
+      const vh = videoEl ? videoEl.videoHeight || 480 : 480;
+
+      s.batPos = {
+        x: (cx / vw) * 2 - 1, // Normalized -1 to 1
+        y: -((cy / vh) * 2 - 1), // Normalized -1 to 1, flipped Y for 3D
+      };
+
+      // Calculate angle
+      s.batAngle = Math.atan2(
+        rightWrist.y - leftWrist.y,
+        rightWrist.x - leftWrist.x,
+      );
+    }
   }
 
   async function startLiveCapture() {
@@ -732,6 +843,14 @@ function App() {
       lastRtRef.current = null;
       setRepCount(0);
       setLiveConfidence(0);
+      setCompareScore(null);
+      setCoachingLog([]);
+
+      if (compareMode && pipVideoRef.current && uploadedVideoUrl) {
+        pipVideoRef.current.src = uploadedVideoUrl;
+        pipVideoRef.current.currentTime = 0;
+        pipVideoRef.current.play().catch(() => {});
+      }
       setStatus("live running");
       liveRunningRef.current = true;
 
@@ -771,7 +890,78 @@ function App() {
               balance: rt.balance,
               path: rt.path,
             });
-            setLiveFeedback(rt.feedback);
+
+            let finalFeedback = rt.feedback;
+
+            if (
+              compareMode &&
+              uploadedFramesRef.current &&
+              pipVideoRef.current
+            ) {
+              const uploadTime = pipVideoRef.current.currentTime || 0;
+              const goldenFrames = uploadedFramesRef.current;
+
+              let nearest = goldenFrames[0];
+              let minDiff = Infinity;
+              for (const gf of goldenFrames) {
+                const diff = Math.abs(gf.timestamp - uploadTime);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  nearest = gf;
+                }
+              }
+
+              if (nearest && nearest.angles) {
+                let diffs = [];
+                if (nearest.angles.knee != null)
+                  diffs.push(Math.abs(rt.knee - nearest.angles.knee));
+                if (nearest.angles.hip != null)
+                  diffs.push(Math.abs(rt.hip - nearest.angles.hip));
+                if (nearest.angles.back != null)
+                  diffs.push(Math.abs(rt.back - nearest.angles.back));
+
+                setReferenceMetrics({
+                  knee: nearest.angles.knee || 0,
+                  hip: nearest.angles.hip || 0,
+                  back: nearest.angles.back || 0,
+                });
+
+                if (nearest.keypoints && pipCanvasRef.current) {
+                  drawReferencePose(pipVideoRef.current, pipCanvasRef.current, nearest);
+                }
+
+                if (diffs.length > 0) {
+                  const avgDiff =
+                    diffs.reduce((a, b) => a + b, 0) / diffs.length;
+                  const simScore = Math.max(0, 100 - avgDiff * 2);
+                  setCompareScore(simScore);
+
+                  if (simScore > 85) {
+                    finalFeedback = `[PRO MATCH] Excellent alignment (${Math.round(simScore)}%)`;
+                  } else {
+                    finalFeedback = `[PRO COMPARE] Adjust form to match video. Similarity: ${Math.round(simScore)}%`;
+                  }
+                }
+              }
+            } else {
+              setCompareScore(null);
+              setReferenceMetrics(null);
+            }
+
+            setLiveFeedback(finalFeedback);
+
+            // Update Coaching Log with realistic feedback
+            const coachingActivity = activity === "auto" ? "squat" : activity;
+            const advice = getTechnicalAdvice(coachingActivity, rt, rt.phase);
+            if (advice && advice.msg !== lastRtRef.current?.lastAdvice) {
+              setCoachingLog(prev => [{
+                id: Date.now(),
+                time: new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' }),
+                msg: advice.msg,
+                type: advice.type
+              }, ...prev].slice(0, 30)); // Keep last 30 entries
+              rt.lastAdvice = advice.msg;
+            }
 
             if (framesRef.current.length < 350) {
               framesRef.current.push({
@@ -1007,6 +1197,11 @@ function App() {
     videoEl.pause();
     videoEl.currentTime = 0;
     await analyzeFrames(frames);
+
+    if (timelineDataRef.current && timelineDataRef.current.length > 0) {
+      uploadedFramesRef.current = timelineDataRef.current;
+      setHasGoldenSkeleton(true);
+    }
   }
 
   function exportJSON() {
@@ -1019,6 +1214,7 @@ function App() {
     a.download = `synapse-analysis-${Date.now()}.json`;
     a.click();
   }
+
 
   function exportCSV() {
     if (!analysis?.kinematics_stream?.length) return;
@@ -1049,761 +1245,55 @@ function App() {
   const sidebarClass = sidebarCollapsed ? "w-20" : "w-64";
 
   const metricStatus = {
-    knee: gradeDeviation(distanceToRange(liveMetrics.knee, 80, 100), 0, 10)
-      .level,
+    knee: gradeDeviation(distanceToRange(liveMetrics.knee, 80, 100), 0, 10).level,
     hip: gradeDeviation(distanceToRange(liveMetrics.hip, 20, 45), 0, 12).level,
-    back: gradeDeviation(distanceToRange(liveMetrics.back, 20, 45), 0, 12)
-      .level,
+    back: gradeDeviation(distanceToRange(liveMetrics.back, 20, 45), 0, 12).level,
+  };
+
+  const contextValue = {
+    status, setStatus,
+    activity, setActivity,
+    ACTIVITY_OPTIONS, BOWLING_SPEED,
+    cricketModeEnabled,
+    analysisMode, setAnalysisMode,
+    uploadedVideoUrl, setUploadedVideoUrl,
+    sessions, setSessions,
+    coachMode, setCoachMode,
+    liveFeedback, setLiveFeedback,
+    coachingLog,
+    liveConfidence, setLiveConfidence,
+    liveMetrics, setLiveMetrics,
+    referenceMetrics,
+    metricStatus, trend,
+    repCount, setRepCount,
+    avgScore,
+    timelineMeta, setTimelineMeta,
+    compareMode, setCompareMode,
+    hasGoldenSkeleton, setHasGoldenSkeleton,
+    compareScore, setCompareScore,
+    isLoading, setIsLoading,
+    liveVideoRef, liveCanvasRef, pipVideoRef, pipCanvasRef,
+    uploadVideoRef, uploadCanvasRef, fileInputRef,
+    timelineCanvasRef, timelineSliderRef, cricketSceneMountRef,
+    kneeChartRef, trunkChartRef,
+    framesRef, analyzeFrames,
+    ensureDetector, startLiveCapture, stopLiveCapture, analyzeUploadedVideo,
+    stopTimelinePlayback, playTimeline, drawTimelineFrame,
+    cricketSceneReady, deliveryCount, hitCount, cricketResult, cricketSpeed, setCricketSpeed, startDelivery,
+    exportJSON, exportCSV
   };
 
   return (
-    <div className="bg-grid min-h-screen">
-      <SessionModal
-        open={showSummary}
-        onClose={() => setShowSummary(false)}
-        summary={summaryData}
-      />
-
-      <header className="glass-nav sticky top-0 z-40 border-b border-white/10">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 py-3 lg:px-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-primary">
-              Synapse Sports Tech
-            </p>
-            <h1 className="font-heading text-xl">
-              AI Motion Analysis Platform
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-card px-3 py-1 text-xs text-subtxt">
-              <span className="pulse-dot h-2 w-2 rounded-full bg-secondary" />
-              {status}
-            </span>
-            <button
-              className="btn-press rounded-xl border border-white/15 bg-card px-3 py-2 text-sm text-subtxt"
-              onClick={() => setSidebarCollapsed((v) => !v)}
-            >
-              {sidebarCollapsed ? "Expand" : "Collapse"}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-4 p-4 lg:grid-cols-[auto_1fr_380px] lg:p-6">
-        <aside
-          className={`${sidebarClass} rounded-2xl border border-white/10 bg-card p-3 transition-all duration-300`}
-        >
-          <nav className="space-y-2">
-            {NAV_ITEMS.map((item) => {
-              const active = activeNav === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setActiveNav(item.key)}
-                  className={`sidebar-item btn-press flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left ${active ? "border border-primary/55 bg-primary/10 text-txt" : "border border-transparent text-subtxt"}`}
-                >
-                  <span className="text-lg">{item.icon}</span>
-                  {!sidebarCollapsed && (
-                    <span className="text-sm font-medium">{item.label}</span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-
-        <main className="space-y-4">
-          {activeNav === "home" && (
-            <>
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <p className="text-xs uppercase tracking-wide text-primary">
-                  Welcome Back
-                </p>
-                <h2 className="mt-1 font-heading text-2xl">
-                  Sports Motion Command Center
-                </h2>
-                <p className="mt-1 text-sm text-subtxt">
-                  Start a live session, upload a clip, or review past
-                  biomechanics trends.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    className="btn-press rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-black"
-                    onClick={() => setActiveNav("analyze")}
-                  >
-                    Start Analysis
-                  </button>
-                  <button
-                    className="btn-press rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-black"
-                    onClick={() => setActiveNav("history")}
-                  >
-                    View History
-                  </button>
-                </div>
-              </section>
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <h3 className="font-heading text-lg">Recent Sessions</h3>
-                <div className="mt-3 grid gap-2">
-                  {sessions.slice(0, 6).map((s, i) => (
-                    <div
-                      key={i}
-                      className="rounded-xl border border-white/10 bg-bg p-3 text-sm"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{s.activity}</span>
-                        <span className="text-subtxt">
-                          {new Date(s.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-subtxt">
-                        <span>Score {s.score}/100</span>
-                        <span>Risk {s.risk}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {!sessions.length && (
-                    <p className="text-sm text-subtxt">
-                      No sessions yet. Run your first analysis.
-                    </p>
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-
-          {activeNav === "history" && (
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="font-heading text-xl">Session History</h2>
-                <span className="text-sm text-subtxt">
-                  {sessions.length} sessions
-                </span>
-              </div>
-              <div className="space-y-2">
-                {sessions.map((s, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl border border-white/10 bg-bg p-3"
-                  >
-                    <div className="flex items-center justify-between text-sm">
-                      <strong>{s.activity}</strong>
-                      <span className="text-subtxt">
-                        {new Date(s.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
-                      <div className="rounded-lg border border-white/10 bg-card p-2">
-                        <p className="text-subtxt">Score</p>
-                        <p>{s.score}/100</p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-card p-2">
-                        <p className="text-subtxt">Consistency</p>
-                        <p>{s.consistency}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-card p-2">
-                        <p className="text-subtxt">Risk</p>
-                        <p>{s.risk}</p>
-                      </div>
-                      <div className="rounded-lg border border-white/10 bg-card p-2">
-                        <p className="text-subtxt">Power</p>
-                        <p>{s.power}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {!sessions.length && (
-                  <p className="text-sm text-subtxt">
-                    No history available yet.
-                  </p>
-                )}
-              </div>
-            </section>
-          )}
-
-          {activeNav === "insights" && (
-            <>
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <h2 className="font-heading text-xl">Performance Insights</h2>
-                <p className="mt-1 text-sm text-subtxt">
-                  Use these trends to prioritize technique work.
-                </p>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-bg p-3">
-                    <p className="text-xs text-subtxt">Best Score</p>
-                    <p className="font-heading text-2xl">
-                      {sessions.length
-                        ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
-                        : "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-bg p-3">
-                    <p className="text-xs text-subtxt">Avg Score</p>
-                    <p className="font-heading text-2xl">
-                      {sessions.length ? avgScore.toFixed(1) : "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-bg p-3">
-                    <p className="text-xs text-subtxt">Total Sessions</p>
-                    <p className="font-heading text-2xl">{sessions.length}</p>
-                  </div>
-                </div>
-              </section>
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <h3 className="font-heading text-lg">Technique Trend</h3>
-                <p className="mt-1 text-sm text-subtxt">
-                  Recent sessions with risk and consistency overview.
-                </p>
-                <div className="mt-3 space-y-2">
-                  {sessions.slice(0, 8).map((s, i) => (
-                    <div
-                      key={i}
-                      className="rounded-xl border border-white/10 bg-bg p-3 text-sm"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>{s.activity}</span>
-                        <span className="text-subtxt">
-                          {new Date(s.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-subtxt">
-                        <span>Consistency {s.consistency}</span>
-                        <span>Risk {s.risk}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {!sessions.length && (
-                    <p className="text-sm text-subtxt">
-                      Run sessions to unlock insight trends.
-                    </p>
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-
-          {activeNav === "profile" && (
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h2 className="font-heading text-xl">Athlete Profile</h2>
-              <p className="mt-1 text-sm text-subtxt">
-                Manage athlete preferences and coaching mode setup.
-              </p>
-              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-bg p-3">
-                  <p className="text-xs text-subtxt">Coaching Style</p>
-                  <p className="mt-1">Technical + Encouraging</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-3">
-                  <p className="text-xs text-subtxt">Preferred Activity</p>
-                  <p className="mt-1">
-                    {ACTIVITY_OPTIONS.find((x) => x.key === activity)?.label ||
-                      "Auto Detect"}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-3">
-                  <p className="text-xs text-subtxt">Coach Mode</p>
-                  <p className="mt-1">{coachMode ? "Enabled" : "Disabled"}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-3">
-                  <p className="text-xs text-subtxt">Sessions Logged</p>
-                  <p className="mt-1">{sessions.length}</p>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {activeNav === "analyze" && (
-            <>
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="font-heading text-xl">Live Analysis</h2>
-                    <p className="text-sm text-subtxt">
-                      Real-time skeletal tracking and biomechanics coaching
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={analysisMode}
-                      onChange={(e) => setAnalysisMode(e.target.value)}
-                      className="rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-txt outline-none"
-                    >
-                      <option value="standard">Standard Mode</option>
-                      <option value="cricket">Cricket Mode</option>
-                    </select>
-                    <select
-                      value={activity}
-                      onChange={(e) => setActivity(e.target.value)}
-                      className="rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-txt outline-none"
-                    >
-                      {ACTIVITY_OPTIONS.map((opt) => (
-                        <option key={opt.key} value={opt.key}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      className="btn-press rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-black"
-                      onClick={ensureDetector}
-                    >
-                      Init Model
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_310px]">
-                  <div className="neon-border relative overflow-hidden rounded-2xl bg-black">
-                    <video
-                      ref={liveVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="aspect-video w-full object-cover"
-                    />
-                    <canvas
-                      ref={liveCanvasRef}
-                      className="pointer-events-none absolute inset-0 h-full w-full"
-                    />
-
-                    <div className="absolute left-3 top-3 flex items-center gap-2">
-                      <span className="rounded-full bg-primary/85 px-3 py-1 text-xs font-semibold text-black">
-                        {(
-                          ACTIVITY_OPTIONS.find((x) => x.key === activity)
-                            ?.label || activity
-                        )
-                          .replace("Gym: ", "")
-                          .replace("Cricket: ", "")}
-                      </span>
-                      <span className="rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
-                        Rep {repCount}
-                      </span>
-                    </div>
-
-                    <div className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
-                      <span className="pulse-dot h-2 w-2 rounded-full bg-secondary" />
-                      Live
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/15 bg-card/80 p-3 backdrop-blur">
-                      <p className="mb-2 text-xs uppercase tracking-wide text-primary">
-                        AI Coach
-                      </p>
-                      <p className="text-sm leading-snug">{liveFeedback}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-warn via-yellow-400 to-secondary transition-all duration-300"
-                            style={{ width: `${liveConfidence}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-subtxt">
-                          {Math.round(liveConfidence)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {isLoading ? (
-                      <>
-                        <div className="metric-skeleton h-28 rounded-2xl" />
-                        <div className="metric-skeleton h-28 rounded-2xl" />
-                        <div className="metric-skeleton h-28 rounded-2xl" />
-                      </>
-                    ) : (
-                      <>
-                        <MetricsCard
-                          label="Knee Angle"
-                          value={liveMetrics.knee.toFixed(1)}
-                          unit="deg"
-                          status={metricStatus.knee}
-                          sparkValues={trend.knee}
-                        />
-                        <MetricsCard
-                          label="Hip Angle"
-                          value={liveMetrics.hip.toFixed(1)}
-                          unit="deg"
-                          status={metricStatus.hip}
-                          sparkValues={trend.hip}
-                        />
-                        <MetricsCard
-                          label="Back Angle"
-                          value={liveMetrics.back.toFixed(1)}
-                          unit="deg"
-                          status={metricStatus.back}
-                          sparkValues={trend.back}
-                        />
-                      </>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        className="btn-press rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-black"
-                        onClick={startLiveCapture}
-                      >
-                        Start Live
-                      </button>
-                      <button
-                        className="btn-press rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-black"
-                        onClick={() => {
-                          stopLiveCapture();
-                          analyzeFrames(framesRef.current);
-                        }}
-                      >
-                        Stop + Analyze
-                      </button>
-                    </div>
-
-                    {cricketModeEnabled && (
-                      <div className="rounded-2xl border border-primary/25 bg-bg p-3 text-xs text-subtxt">
-                        <p className="mb-2 text-[11px] uppercase tracking-wide text-primary">
-                          Cricket Simulation Controls
-                        </p>
-                        <div className="mb-2 flex items-center gap-2">
-                          <select
-                            value={cricketSpeed}
-                            onChange={(e) => setCricketSpeed(e.target.value)}
-                            className="flex-1 rounded-lg border border-white/15 bg-card px-2 py-1.5 text-xs text-txt"
-                          >
-                            {Object.entries(BOWLING_SPEED).map(([k, v]) => (
-                              <option key={k} value={k}>
-                                {v.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            className="btn-press rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-black"
-                            onClick={startDelivery}
-                            disabled={!cricketSceneReady}
-                          >
-                            Release Ball
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">
-                              Deliveries
-                            </p>
-                            <p className="text-txt">{deliveryCount}</p>
-                          </div>
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">Hits</p>
-                            <p className="text-txt">{hitCount}</p>
-                          </div>
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">Result</p>
-                            <p
-                              className={
-                                cricketResult.outcome === "HIT"
-                                  ? "text-secondary"
-                                  : cricketResult.outcome === "MISS"
-                                    ? "text-warn"
-                                    : "text-txt"
-                              }
-                            >
-                              {cricketResult.outcome === "in_flight"
-                                ? "Ball In Flight"
-                                : cricketResult.outcome.toUpperCase()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-2xl border border-white/10 bg-bg p-3 text-xs text-subtxt">
-                      <div className="mb-1 flex justify-between">
-                        <span>Timing Offset</span>
-                        <strong className="text-txt">
-                          {liveMetrics.timing} ms
-                        </strong>
-                      </div>
-                      <div className="mb-1 flex justify-between">
-                        <span>Path Width</span>
-                        <strong className="text-txt">
-                          {liveMetrics.path.toFixed(3)}
-                        </strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Balance Drift</span>
-                        <strong className="text-txt">
-                          {liveMetrics.balance}%
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-heading text-lg">
-                    Upload Video Analysis
-                  </h3>
-                  <button
-                    className="btn-press rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Choose Video
-                  </button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    uploadVideoRef.current.src = URL.createObjectURL(f);
-                    setStatus(`loaded: ${f.name}`);
-                  }}
-                />
-                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-                  <video
-                    ref={uploadVideoRef}
-                    controls
-                    playsInline
-                    muted
-                    className="aspect-video w-full object-cover"
-                  />
-                  <canvas
-                    ref={uploadCanvasRef}
-                    className="pointer-events-none absolute inset-0 h-full w-full"
-                  />
-                </div>
-                <button
-                  className="btn-press mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-black"
-                  onClick={analyzeUploadedVideo}
-                >
-                  Analyze Upload
-                </button>
-              </section>
-
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <h3 className="font-heading text-lg">Data Visualization</h3>
-                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-bg p-3">
-                    <canvas ref={kneeChartRef} className="h-64" />
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-bg p-3">
-                    <canvas ref={trunkChartRef} className="h-64" />
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-white/10 bg-bg p-3">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="font-heading text-sm">
-                      Skeleton Time-Lapse (Activity-Aware)
-                    </h4>
-                    <div className="flex items-center gap-2 text-xs text-subtxt">
-                      <span>
-                        Frame {timelineMeta.current + 1}/
-                        {Math.max(1, timelineMeta.total)}
-                      </span>
-                      <span>•</span>
-                      <span>Phase: {timelineMeta.phase}</span>
-                      <span>•</span>
-                      <span className="text-warn">
-                        Worst: #{timelineMeta.worst + 1}
-                      </span>
-                    </div>
-                  </div>
-
-                  <canvas
-                    ref={timelineCanvasRef}
-                    width="780"
-                    height="360"
-                    className="w-full rounded-xl border border-white/10 bg-[#070d15]"
-                  />
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      className="btn-press rounded-xl bg-secondary px-3 py-2 text-xs font-semibold text-black"
-                      onClick={() => {
-                        if (timelineMeta.playing) stopTimelinePlayback();
-                        else playTimeline();
-                      }}
-                      disabled={!timelineMeta.total}
-                    >
-                      {timelineMeta.playing ? "Pause" : "Play"}
-                    </button>
-                    <button
-                      className="btn-press rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-black"
-                      onClick={() => {
-                        stopTimelinePlayback();
-                        drawTimelineFrame(timelineMeta.worst || 0);
-                      }}
-                      disabled={!timelineMeta.total}
-                    >
-                      Jump To Worst
-                    </button>
-                    <input
-                      ref={timelineSliderRef}
-                      type="range"
-                      min="0"
-                      max={Math.max(0, timelineMeta.total - 1)}
-                      defaultValue="0"
-                      className="h-2 flex-1 cursor-pointer accent-primary"
-                      onChange={(e) => {
-                        stopTimelinePlayback();
-                        drawTimelineFrame(Number(e.target.value));
-                      }}
-                    />
-                  </div>
-                </div>
-              </section>
-            </>
-          )}
-        </main>
-
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Performance Score</h3>
-            <CircularScore score={analysis?.overall_score || 0} />
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtxt">
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p>Activity</p>
-                <strong className="text-sm text-txt">
-                  {analysis?.activity || "--"}
-                </strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p>Status</p>
-                <strong className="text-sm text-txt">{status}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-heading text-lg">AI Coaching</h3>
-              <span className="rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
-                Prioritized
-              </span>
-            </div>
-            <div className="space-y-2">
-              {(feedbackItems.length
-                ? feedbackItems
-                : [
-                    {
-                      msg: "Run an analysis to get personalized feedback.",
-                      severity: "low",
-                    },
-                  ]
-              ).map((f, i) => (
-                <FeedbackCard key={i} msg={f.msg} severity={f.severity} />
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Session Controls</h3>
-            <div className="mt-2 space-y-2">
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={() => setShowSummary(true)}
-                disabled={!summaryData}
-              >
-                Open Session Summary
-              </button>
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={exportJSON}
-                disabled={!analysis}
-              >
-                Export JSON
-              </button>
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={exportCSV}
-                disabled={!analysis}
-              >
-                Export CSV
-              </button>
-            </div>
-
-            <label className="mt-3 flex items-center gap-2 text-sm text-subtxt">
-              <input
-                type="checkbox"
-                checked={coachMode}
-                onChange={(e) => setCoachMode(e.target.checked)}
-              />
-              Coach Mode (advanced)
-            </label>
-            {coachMode && (
-              <pre className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/10 bg-bg p-3 text-[11px] text-primary">
-                {rawPreview || "{}"}
-              </pre>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Session Snapshot</h3>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Perf.</p>
-                <strong>{homeSummary.performance}</strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Consist.</p>
-                <strong>{homeSummary.consistency}</strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Risk</p>
-                <strong>{homeSummary.risk}</strong>
-              </div>
-            </div>
-            <div className="mt-3 space-y-2">
-              {sessions.slice(0, 4).map((s, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-white/10 bg-bg p-2 text-xs"
-                >
-                  <div className="flex items-center justify-between text-subtxt">
-                    <span>{s.activity}</span>
-                    <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between">
-                    <strong>{s.score}/100</strong>
-                    <span className="text-subtxt">Risk: {s.risk}</span>
-                  </div>
-                </div>
-              ))}
-              {!sessions.length && (
-                <p className="text-xs text-subtxt">No sessions yet.</p>
-              )}
-            </div>
-          </section>
-
-          {activeNav === "insights" && (
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h3 className="font-heading text-lg">Insights</h3>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Best</p>
-                  <strong>
-                    {sessions.length
-                      ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
-                      : "--"}
-                  </strong>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Avg</p>
-                  <strong>
-                    {sessions.length ? avgScore.toFixed(1) : "--"}
-                  </strong>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Total</p>
-                  <strong>{sessions.length}</strong>
-                </div>
-              </div>
-            </section>
-          )}
-        </aside>
-      </div>
-    </div>
+    <Routes>
+      <Route element={<MainLayout status={status} context={contextValue} />}>
+        <Route path="/" element={<HomeView />} />
+        <Route path="/live" element={<LiveAnalyzeView />} />
+        <Route path="/upload" element={<UploadAnalyzeView />} />
+        <Route path="/dashboard" element={<DashboardView />} />
+        <Route path="/about" element={<AboutView />} />
+      </Route>
+    </Routes>
   );
 }
-
 
 export default App;

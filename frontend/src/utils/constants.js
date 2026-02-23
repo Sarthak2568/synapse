@@ -9,11 +9,10 @@ export const COLORS = {
 };
 
 export const NAV_ITEMS = [
-  { key: "home", icon: "⌂", label: "Home" },
-  { key: "analyze", icon: "◉", label: "Analyze" },
-  { key: "history", icon: "◷", label: "History" },
-  { key: "insights", icon: "◍", label: "Insights" },
-  { key: "profile", icon: "◎", label: "Profile" },
+  { path: "/", icon: "⌂", label: "Home" },
+  { path: "/live", icon: "◉", label: "Live Analysis" },
+  { path: "/upload", icon: "↑", label: "Upload Video" },
+  { path: "/dashboard", icon: "◷", label: "Dashboard" },
 ];
 
 export const EDGES = [

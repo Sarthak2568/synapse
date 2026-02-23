@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { BOWLING_SPEED } from '../utils/constants';
-import { clamp } from '../utils/poseUtils';
+import { useState, useEffect, useRef } from "react";
+import * as THREE from "three";
+import { BOWLING_SPEED } from "../utils/constants";
+import { clamp } from "../utils/poseUtils";
 
 export function useCricketSimulation({ enabled, mountRef, swingRef }) {
   const threeRef = useRef({
@@ -12,6 +12,7 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
     bowler: null,
     pitch: null,
     hitZone: null,
+    bat: null,
     rafId: null,
     resizeObserver: null,
   });
@@ -111,6 +112,7 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
       bowler: null,
       pitch: null,
       hitZone: null,
+      bat: null,
       rafId: null,
       resizeObserver: null,
     };
@@ -244,6 +246,24 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
       bowler.position.set(0.2, 0, -11.5);
       scene.add(bowler);
 
+      const bat = new THREE.Group();
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 0.8, 0.04),
+        new THREE.MeshStandardMaterial({ color: 0xe6c280, roughness: 0.7 }),
+      );
+      blade.position.set(0, -0.4, 0); // Blade sits below handle
+
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.35, 16),
+        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }),
+      );
+      handle.position.set(0, 0.175, 0);
+
+      bat.add(blade);
+      bat.add(handle);
+      bat.position.set(0, 1.2, 0.35); // Start position at hit zone
+      scene.add(bat);
+
       const ball = new THREE.Mesh(
         new THREE.SphereGeometry(0.09, 16, 16),
         new THREE.MeshStandardMaterial({
@@ -267,17 +287,24 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
       hitZone.position.set(0, 1.02, 0.35);
       scene.add(hitZone);
 
-      const resize = () => {
+      const resize = (entries) => {
         if (!mountRef.current || !renderer) return;
-        const w = Math.max(320, mountRef.current.clientWidth);
-        const h = Math.max(220, mountRef.current.clientHeight);
-        renderer.setSize(w, h, false);
-        camera.aspect = w / h;
+        let w = mountRef.current.clientWidth || 320;
+        let h = mountRef.current.clientHeight || 260;
+
+        if (entries && entries.length > 0) {
+          w = entries[0].contentRect.width || w;
+          h = entries[0].contentRect.height || h;
+        }
+
+        // Must be true (or omitted) to set canvas CSS width and height
+        renderer.setSize(w || 320, h || 260, true);
+        camera.aspect = (w || 320) / (h || 260);
         camera.updateProjectionMatrix();
       };
 
       resize();
-      const ro = new ResizeObserver(resize);
+      const ro = new ResizeObserver((entries) => resize(entries));
       ro.observe(mountRef.current);
 
       threeRef.current = {
@@ -288,6 +315,7 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
         bowler,
         pitch,
         hitZone,
+        bat,
         rafId: null,
         resizeObserver: ro,
       };
@@ -425,6 +453,20 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
 
         if (result.show && ts - stateRef.current.resultTs > 1500) {
           setResult((prev) => ({ ...prev, show: false }));
+        }
+
+        if (t.bat && swingRef.current && swingRef.current.batPos) {
+          const bp = swingRef.current.batPos;
+          const ba = swingRef.current.batAngle;
+
+          const targetX = bp.x * 1.5;
+          const targetY = 1.2 + bp.y * 1.2;
+
+          t.bat.position.x += (targetX - t.bat.position.x) * 0.5;
+          t.bat.position.y += (targetY - t.bat.position.y) * 0.5;
+
+          t.bat.rotation.z = ba - Math.PI / 2;
+          t.bat.rotation.x = -0.2 + bp.y * 0.2;
         }
 
         t.renderer.render(t.scene, t.camera);
