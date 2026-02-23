@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { BOWLING_SPEED } from '../utils/constants';
-import { clamp } from '../utils/poseUtils';
+import { useState, useEffect, useRef } from "react";
+import * as THREE from "three";
+import { BOWLING_SPEED } from "../utils/constants";
+import { clamp } from "../utils/poseUtils";
 
 export function useCricketSimulation({ enabled, mountRef, swingRef }) {
   const threeRef = useRef({
@@ -267,17 +267,24 @@ export function useCricketSimulation({ enabled, mountRef, swingRef }) {
       hitZone.position.set(0, 1.02, 0.35);
       scene.add(hitZone);
 
-      const resize = () => {
+      const resize = (entries) => {
         if (!mountRef.current || !renderer) return;
-        const w = Math.max(320, mountRef.current.clientWidth);
-        const h = Math.max(220, mountRef.current.clientHeight);
-        renderer.setSize(w, h, false);
-        camera.aspect = w / h;
+        let w = mountRef.current.clientWidth || 320;
+        let h = mountRef.current.clientHeight || 260;
+
+        if (entries && entries.length > 0) {
+          w = entries[0].contentRect.width || w;
+          h = entries[0].contentRect.height || h;
+        }
+
+        // Must be true (or omitted) to set canvas CSS width and height
+        renderer.setSize(w || 320, h || 260, true);
+        camera.aspect = (w || 320) / (h || 260);
         camera.updateProjectionMatrix();
       };
 
       resize();
-      const ro = new ResizeObserver(resize);
+      const ro = new ResizeObserver((entries) => resize(entries));
       ro.observe(mountRef.current);
 
       threeRef.current = {
