@@ -140,6 +140,12 @@ function App() {
   const lastSampleTsRef = useRef(0);
   const startTsRef = useRef(0);
   const lastRtRef = useRef(null);
+
+  const uploadedFramesRef = useRef(null);
+  const [hasGoldenSkeleton, setHasGoldenSkeleton] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareScore, setCompareScore] = useState(null);
+  const pipVideoRef = useRef(null);
   const timelineDataRef = useRef([]);
   const timelinePlayRef = useRef(false);
   const timelineRafRef = useRef(null);
@@ -800,6 +806,13 @@ function App() {
       lastRtRef.current = null;
       setRepCount(0);
       setLiveConfidence(0);
+      setCompareScore(null);
+
+      if (compareMode && pipVideoRef.current && uploadVideoRef.current?.src) {
+        pipVideoRef.current.src = uploadVideoRef.current.src;
+        pipVideoRef.current.currentTime = 0;
+        pipVideoRef.current.play().catch(() => {});
+      }
       setStatus("live running");
       liveRunningRef.current = true;
 
@@ -839,7 +852,54 @@ function App() {
               balance: rt.balance,
               path: rt.path,
             });
-            setLiveFeedback(rt.feedback);
+
+            let finalFeedback = rt.feedback;
+
+            if (
+              compareMode &&
+              uploadedFramesRef.current &&
+              pipVideoRef.current
+            ) {
+              const uploadTime = pipVideoRef.current.currentTime || 0;
+              const goldenFrames = uploadedFramesRef.current;
+
+              let nearest = goldenFrames[0];
+              let minDiff = Infinity;
+              for (const gf of goldenFrames) {
+                const diff = Math.abs(gf.timestamp - uploadTime);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  nearest = gf;
+                }
+              }
+
+              if (nearest && nearest.angles) {
+                let diffs = [];
+                if (nearest.angles.knee != null)
+                  diffs.push(Math.abs(rt.knee - nearest.angles.knee));
+                if (nearest.angles.hip != null)
+                  diffs.push(Math.abs(rt.hip - nearest.angles.hip));
+                if (nearest.angles.back != null)
+                  diffs.push(Math.abs(rt.back - nearest.angles.back));
+
+                if (diffs.length > 0) {
+                  const avgDiff =
+                    diffs.reduce((a, b) => a + b, 0) / diffs.length;
+                  const simScore = Math.max(0, 100 - avgDiff * 2);
+                  setCompareScore(simScore);
+
+                  if (simScore > 85) {
+                    finalFeedback = `[PRO MATCH] Excellent alignment (${Math.round(simScore)}%)`;
+                  } else {
+                    finalFeedback = `[PRO COMPARE] Adjust form to match video. Similarity: ${Math.round(simScore)}%`;
+                  }
+                }
+              }
+            } else {
+              setCompareScore(null);
+            }
+
+            setLiveFeedback(finalFeedback);
 
             if (framesRef.current.length < 350) {
               framesRef.current.push({
@@ -1075,6 +1135,11 @@ function App() {
     videoEl.pause();
     videoEl.currentTime = 0;
     await analyzeFrames(frames);
+
+    if (timelineDataRef.current && timelineDataRef.current.length > 0) {
+      uploadedFramesRef.current = timelineDataRef.current;
+      setHasGoldenSkeleton(true);
+    }
   }
 
   function exportJSON() {
@@ -1392,6 +1457,14 @@ function App() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {hasGoldenSkeleton && (
+                      <button
+                        className={`btn-press rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${compareMode ? "bg-secondary text-black drop-shadow-[0_0_8px_rgba(0,255,170,0.5)]" : "border border-secondary/50 text-secondary hover:bg-secondary/10"}`}
+                        onClick={() => setCompareMode(!compareMode)}
+                      >
+                        {compareMode ? "Compare Active" : "Pro-Compare"}
+                      </button>
+                    )}
                     <select
                       value={analysisMode}
                       onChange={(e) => setAnalysisMode(e.target.value)}
@@ -1435,7 +1508,20 @@ function App() {
                         className="pointer-events-none absolute inset-0 h-full w-full"
                       />
 
-                      <div className="absolute left-3 top-3 flex items-center gap-2">
+                      {compareMode && hasGoldenSkeleton && (
+                        <div className="absolute right-3 top-14 w-1/3 overflow-hidden rounded-xl border-2 border-secondary shadow-2xl z-20">
+                          <video
+                            ref={pipVideoRef}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full aspect-video object-cover"
+                          />
+                        </div>
+                      )}
+
+                      <div className="absolute left-3 top-3 flex items-center gap-2 z-30">
                         <span className="rounded-full bg-primary/85 px-3 py-1 text-xs font-semibold text-black">
                           {(
                             ACTIVITY_OPTIONS.find((x) => x.key === activity)
@@ -1454,10 +1540,17 @@ function App() {
                         Live
                       </div>
 
-                      <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/15 bg-card/80 p-3 backdrop-blur">
-                        <p className="mb-2 text-xs uppercase tracking-wide text-primary">
-                          AI Coach
-                        </p>
+                      <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/15 bg-card/80 p-3 backdrop-blur z-30">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs uppercase tracking-wide text-primary">
+                            AI Coach
+                          </p>
+                          {compareScore !== null && (
+                            <span className="rounded bg-black/40 px-2 py-0.5 text-[10px] font-bold uppercase text-secondary">
+                              Pro Sim: {compareScore.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm leading-snug">{liveFeedback}</p>
                         <div className="mt-2 flex items-center gap-2">
                           <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
