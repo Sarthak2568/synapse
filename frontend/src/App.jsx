@@ -1397,55 +1397,155 @@ function App() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_310px]">
-                  <div className="neon-border relative overflow-hidden rounded-2xl bg-black">
-                    <video
-                      ref={liveVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="aspect-video w-full object-cover"
-                    />
-                    <canvas
-                      ref={liveCanvasRef}
-                      className="pointer-events-none absolute inset-0 h-full w-full"
-                    />
+                  <div className="flex flex-col gap-4">
+                    <div className="neon-border relative overflow-hidden rounded-2xl bg-black">
+                      <video
+                        ref={liveVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="aspect-video w-full object-cover"
+                      />
+                      <canvas
+                        ref={liveCanvasRef}
+                        className="pointer-events-none absolute inset-0 h-full w-full"
+                      />
 
-                    <div className="absolute left-3 top-3 flex items-center gap-2">
-                      <span className="rounded-full bg-primary/85 px-3 py-1 text-xs font-semibold text-black">
-                        {(
-                          ACTIVITY_OPTIONS.find((x) => x.key === activity)
-                            ?.label || activity
-                        )
-                          .replace("Gym: ", "")
-                          .replace("Cricket: ", "")}
-                      </span>
-                      <span className="rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
-                        Rep {repCount}
-                      </span>
-                    </div>
-
-                    <div className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
-                      <span className="pulse-dot h-2 w-2 rounded-full bg-secondary" />
-                      Live
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/15 bg-card/80 p-3 backdrop-blur">
-                      <p className="mb-2 text-xs uppercase tracking-wide text-primary">
-                        AI Coach
-                      </p>
-                      <p className="text-sm leading-snug">{liveFeedback}</p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-warn via-yellow-400 to-secondary transition-all duration-300"
-                            style={{ width: `${liveConfidence}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-subtxt">
-                          {Math.round(liveConfidence)}%
+                      <div className="absolute left-3 top-3 flex items-center gap-2">
+                        <span className="rounded-full bg-primary/85 px-3 py-1 text-xs font-semibold text-black">
+                          {(
+                            ACTIVITY_OPTIONS.find((x) => x.key === activity)
+                              ?.label || activity
+                          )
+                            .replace("Gym: ", "")
+                            .replace("Cricket: ", "")}
+                        </span>
+                        <span className="rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
+                          Rep {repCount}
                         </span>
                       </div>
+
+                      <div className="absolute right-3 top-3 inline-flex items-center gap-2 rounded-full bg-card/80 px-3 py-1 text-xs text-subtxt">
+                        <span className="pulse-dot h-2 w-2 rounded-full bg-secondary" />
+                        Live
+                      </div>
+
+                      <div className="absolute bottom-3 left-3 right-3 rounded-xl border border-white/15 bg-card/80 p-3 backdrop-blur">
+                        <p className="mb-2 text-xs uppercase tracking-wide text-primary">
+                          AI Coach
+                        </p>
+                        <p className="text-sm leading-snug">{liveFeedback}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-warn via-yellow-400 to-secondary transition-all duration-300"
+                              style={{ width: `${liveConfidence}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-subtxt">
+                            {Math.round(liveConfidence)}%
+                          </span>
+                        </div>
+                      </div>
                     </div>
+
+                    {cricketModeEnabled && (
+                      <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-primary/25 bg-card">
+                        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 bg-bg/80 p-3 backdrop-blur">
+                          <div className="flex items-center gap-3">
+                            <h4 className="flex items-center gap-2 font-heading text-sm text-primary">
+                              <span
+                                className={`inline-flex h-2 w-2 rounded-full ${cricketSceneReady ? "pulse-dot bg-secondary" : "bg-warn"}`}
+                              />
+                              3D Stadium
+                            </h4>
+                            <div className="flex rounded-lg border border-white/5 bg-black/50 p-1">
+                              <div className="px-3 py-1 text-center">
+                                <p className="text-[9px] uppercase tracking-wider text-subtxt">
+                                  Balls
+                                </p>
+                                <p className="font-mono text-sm font-bold leading-none text-white">
+                                  {deliveryCount}
+                                </p>
+                              </div>
+                              <div className="w-px bg-white/10" />
+                              <div className="px-3 py-1 text-center">
+                                <p className="text-[9px] uppercase tracking-wider text-subtxt">
+                                  Hits
+                                </p>
+                                <p className="font-mono text-sm font-bold leading-none text-secondary">
+                                  {hitCount}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {cricketResult.reactionMs != null && (
+                              <span className="flex items-center gap-1 rounded bg-black/40 px-2 py-1 text-[10px] uppercase text-subtxt">
+                                Reaction:{" "}
+                                <strong className="text-white">
+                                  {cricketResult.reactionMs}ms
+                                </strong>
+                              </span>
+                            )}
+                            <div className="flex min-w-[80px] items-center justify-center rounded-lg border border-white/5 bg-black/50 px-3 py-1.5">
+                              <p
+                                className={`font-mono text-xs font-bold ${
+                                  cricketResult.outcome === "HIT" ||
+                                  cricketResult.outcome === "PERFECT" ||
+                                  cricketResult.outcome === "EARLY" ||
+                                  cricketResult.outcome === "LATE"
+                                    ? "text-secondary"
+                                    : cricketResult.outcome === "MISS"
+                                      ? "text-warn"
+                                      : cricketResult.outcome === "in_flight"
+                                        ? "animate-pulse text-primary"
+                                        : "text-subtxt"
+                                }`}
+                              >
+                                {cricketResult.outcome === "idle"
+                                  ? "READY"
+                                  : cricketResult.outcome === "in_flight"
+                                    ? "IN FLIGHT"
+                                    : cricketResult.outcome.toUpperCase()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          ref={cricketSceneMountRef}
+                          className="relative z-0 h-[320px] w-full bg-[#060c14]"
+                        />
+
+                        <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-white/10 bg-black/60 p-1.5 backdrop-blur-md">
+                          <select
+                            value={cricketSpeed}
+                            onChange={(e) => setCricketSpeed(e.target.value)}
+                            className="cursor-pointer rounded-lg bg-transparent px-2 py-1 text-xs text-white outline-none hover:bg-white/5"
+                          >
+                            {Object.entries(BOWLING_SPEED).map(([k, v]) => (
+                              <option
+                                key={k}
+                                value={k}
+                                className="bg-bg text-white"
+                              >
+                                {v.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="h-4 w-px bg-white/20"></div>
+                          <button
+                            className="btn-press rounded-lg bg-secondary/90 px-4 py-1.5 text-xs font-bold text-black shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={startDelivery}
+                            disabled={!cricketSceneReady}
+                          >
+                            BOWL
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -1498,62 +1598,6 @@ function App() {
                         Stop + Analyze
                       </button>
                     </div>
-
-                    {cricketModeEnabled && (
-                      <div className="rounded-2xl border border-primary/25 bg-bg p-3 text-xs text-subtxt">
-                        <p className="mb-2 text-[11px] uppercase tracking-wide text-primary">
-                          Cricket Simulation Controls
-                        </p>
-                        <div className="mb-2 flex items-center gap-2">
-                          <select
-                            value={cricketSpeed}
-                            onChange={(e) => setCricketSpeed(e.target.value)}
-                            className="flex-1 rounded-lg border border-white/15 bg-card px-2 py-1.5 text-xs text-txt"
-                          >
-                            {Object.entries(BOWLING_SPEED).map(([k, v]) => (
-                              <option key={k} value={k}>
-                                {v.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            className="btn-press rounded-lg bg-secondary px-3 py-1.5 text-xs font-semibold text-black"
-                            onClick={startDelivery}
-                            disabled={!cricketSceneReady}
-                          >
-                            Release Ball
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">
-                              Deliveries
-                            </p>
-                            <p className="text-txt">{deliveryCount}</p>
-                          </div>
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">Hits</p>
-                            <p className="text-txt">{hitCount}</p>
-                          </div>
-                          <div className="rounded-lg border border-white/10 bg-card p-2">
-                            <p className="text-[10px] text-subtxt">Result</p>
-                            <p
-                              className={
-                                cricketResult.outcome === "HIT"
-                                  ? "text-secondary"
-                                  : cricketResult.outcome === "MISS"
-                                    ? "text-warn"
-                                    : "text-txt"
-                              }
-                            >
-                              {cricketResult.outcome === "in_flight"
-                                ? "Ball In Flight"
-                                : cricketResult.outcome.toUpperCase()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="rounded-2xl border border-white/10 bg-bg p-3 text-xs text-subtxt">
                       <div className="mb-1 flex justify-between">
@@ -1634,36 +1678,6 @@ function App() {
                     <canvas ref={trunkChartRef} className="h-64" />
                   </div>
                 </div>
-
-                {cricketModeEnabled && (
-                  <div className="mt-4 rounded-2xl border border-primary/25 bg-bg p-3">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-heading text-sm">
-                        3D Interactive Stadium
-                      </h4>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span
-                          className={`inline-flex h-2.5 w-2.5 rounded-full ${cricketSceneReady ? "bg-secondary" : "bg-warn"}`}
-                        />
-                        <span className="text-subtxt">
-                          {cricketSceneReady ? "Scene Ready" : "Loading Scene"}
-                        </span>
-                        {cricketResult.reactionMs != null && (
-                          <>
-                            <span className="text-subtxt">•</span>
-                            <span className="text-subtxt">
-                              Reaction {cricketResult.reactionMs} ms
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div
-                      ref={cricketSceneMountRef}
-                      className="h-[260px] w-full overflow-hidden rounded-xl border border-white/10 bg-black"
-                    />
-                  </div>
-                )}
 
                 <div className="mt-4 rounded-2xl border border-white/10 bg-bg p-3">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
