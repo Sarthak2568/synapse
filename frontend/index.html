@@ -7,47 +7,13 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap" rel="stylesheet" />
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              bg: '#0B0F14',
-              card: '#121821',
-              primary: '#00E5FF',
-              secondary: '#00FF9D',
-              warn: '#FF4D4F',
-              txt: '#E6EDF3',
-              subtxt: '#9BA3AF'
-            },
-            fontFamily: {
-              heading: ['Poppins', 'sans-serif'],
-              body: ['Inter', 'sans-serif']
-            },
-            borderRadius: {
-              '2xl': '1.25rem'
-            },
-            boxShadow: {
-              neon: '0 0 0 1px rgba(0,229,255,.25), 0 0 32px rgba(0,229,255,.12)',
-              card: '0 10px 30px rgba(0,0,0,.35)'
-            }
-          }
-        }
-      };
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="/assets/app.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body class="bg-bg text-txt font-body antialiased">
     <div id="root"></div>
-
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="text/babel" src="/assets/app.jsx"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
