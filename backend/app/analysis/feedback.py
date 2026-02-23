@@ -51,6 +51,20 @@ def joint_assessment(activity: str, metrics: list[MetricResult]) -> dict[str, st
             "trunk": status("trunk_angle_bottom"),
             "head": status("head_stability"),
         }
+    if activity == "pushup":
+        return {
+            "left_elbow": status("min_elbow_angle"),
+            "right_elbow": status("min_elbow_angle"),
+            "trunk": status("torso_line_stability"),
+            "head": status("head_stability"),
+        }
+    if activity == "bowling":
+        return {
+            "release": status("release_timing_index"),
+            "trunk": status("trunk_rotation_span"),
+            "hips": status("hip_drive_velocity_span"),
+            "arm_path": status("release_height_index"),
+        }
 
     return {
         "front_knee": status("front_knee_angle_impact"),
@@ -81,6 +95,22 @@ def performance_explanations(activity: str, metrics: list[MetricResult], bio: Bi
         elif activity == "cricket_cover_drive" and m.name == "front_knee_angle_impact":
             out.append(
                 f"Front-knee alignment near target improves ground-reaction direction and helps convert lower-body force (~{bio.force_estimate_n:.1f} N estimate) into shot power."
+            )
+        elif activity == "pushup" and m.name == "min_elbow_angle":
+            out.append(
+                f"Reaching elbow depth targets increases pressing ROM and can raise usable power output (current estimate ~{bio.power_estimate_w:.1f} W)."
+            )
+        elif activity == "pushup" and m.name == "torso_line_stability":
+            out.append(
+                f"A steadier torso line reduces energy leaks and improves force transfer through the kinetic chain."
+            )
+        elif activity == "bowling" and m.name == "release_timing_index":
+            out.append(
+                f"Tighter release timing improves momentum transfer at ball release (momentum estimate {bio.momentum_estimate:.1f})."
+            )
+        elif activity == "bowling" and m.name == "hip_drive_velocity_span":
+            out.append(
+                f"Stronger hip drive can increase delivery power by improving lower-body contribution (~{bio.force_estimate_n:.1f} N estimate)."
             )
 
     if not out:

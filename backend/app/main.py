@@ -9,10 +9,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.analysis.activity import detect_activity
 from app.analysis.biomechanics import biomechanics_summary
+from app.analysis.cricket_shot_classifier import classify_shot_from_series
+from app.analysis.cricket_cnn_inference import predict_from_pose_frames
 from app.analysis.features import (
+    bowling_features_from_series,
     cover_drive_features_from_series,
     extract_common_series,
     kinematics_stream,
+    pushup_features_from_series,
     squat_features_from_series,
 )
 from app.analysis.feedback import (
@@ -22,7 +26,7 @@ from app.analysis.feedback import (
     performance_explanations,
 )
 from app.analysis.scoring import score_activity
-from app.schemas import AnalysisRequest, AnalysisResponse
+from app.schemas import AnalysisRequest, AnalysisResponse, CNNShotSignal
 
 app = FastAPI(title="Sports Motion Analysis API", version="0.2.0")
 
@@ -52,8 +56,12 @@ def analyze(payload: AnalysisRequest) -> AnalysisResponse:
 
     if activity == "squat":
         feature_values = squat_features_from_series(series)
-    else:
+    elif activity == "cricket_cover_drive":
         feature_values = cover_drive_features_from_series(series, payload.fps)
+    elif activity == "pushup":
+        feature_values = pushup_features_from_series(series)
+    else:
+        feature_values = bowling_features_from_series(series)
 
     overall, metrics = score_activity(activity, feature_values)
     bio = biomechanics_summary(activity, series)
@@ -66,6 +74,9 @@ def analyze(payload: AnalysisRequest) -> AnalysisResponse:
     live_stream = kinematics_stream(series)
 
     timeline = {k: [round(v, 4) for v in vals] for k, vals in series.items()}
+    shot = classify_shot_from_series(series) if activity == "cricket_cover_drive" else None
+    cnn_shot_payload = predict_from_pose_frames(frames) if activity == "cricket_cover_drive" else None
+    cnn_shot = CNNShotSignal(**cnn_shot_payload) if cnn_shot_payload else None
 
     return AnalysisResponse(
         activity=activity,
@@ -77,6 +88,8 @@ def analyze(payload: AnalysisRequest) -> AnalysisResponse:
         kinematics_stream=live_stream,
         biomechanics=bio,
         joint_assessment=joints,
+        cricket_shot=shot,
+        cnn_shot=cnn_shot,
     )
 
 

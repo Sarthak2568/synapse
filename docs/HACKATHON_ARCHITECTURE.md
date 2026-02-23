@@ -9,8 +9,10 @@
   - MoveNet pose estimation (17 keypoints)
   - Temporal smoothing and tracking
 - Motion Intelligence Layer
-  - Activity detection (`squat`, `cricket_cover_drive`, `auto`)
+  - Activity detection (`squat`, `pushup`, `bowling`, `cricket_cover_drive`, `auto`)
   - Kinematics extraction (angles, position, velocity, acceleration)
+  - Cricket shot subtype mapping (`drive`, `legglance-flick`, `pullshot`, `sweep`)
+  - Optional lightweight CNN shot signal (`cnn_shot`) with fallback-safe routing
 - Technique Evaluation Layer
   - Rule-based comparison to ideal ranges
   - Weighted scoring engine
@@ -31,8 +33,12 @@
 - Pose Estimation
   - TensorFlow.js MoveNet SinglePose Lightning (real-time)
 - Activity Detection
-  - Lightweight heuristic detector (hip vertical excursion vs wrist lateral excursion)
-  - Hackathon-feasible and robust enough for squat vs cover drive
+  - Lightweight heuristic detector across gym + cricket movements
+  - Hackathon-feasible and robust enough for squat/pushup/bowling/cover-drive routing
+- Cricket Shot Classification
+  - Notebook-derived class taxonomy integrated into backend output
+  - Labels: `drive`, `legglance-flick`, `pullshot`, `sweep`
+  - Optional CNN helper: lazy-loaded singleton + temporal smoothing + CPU fallback
 - Technique Comparison
   - Reference-range matching for key metrics (angles, symmetry, timing)
   - Weighted aggregate scoring

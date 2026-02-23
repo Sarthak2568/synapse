@@ -40,12 +40,25 @@ export const SEVERITY_COLORS = {
 
 export const ACTIVITY_OPTIONS = [
   { key: "auto", label: "Auto Detect" }, { key: "squat", label: "Gym: Squat" },
-  { key: "pushup", label: "Gym: Push-up" }, { key: "coverDrive", label: "Cricket: Cover Drive" },
+  { key: "pushup", label: "Gym: Push-up" },
+  { key: "coverDrive", label: "Cricket: Cover Drive (Generic)" },
+  { key: "cricketDrive", label: "Cricket: Drive" },
+  { key: "cricketLegGlanceFlick", label: "Cricket: Legglance-Flick" },
+  { key: "cricketPullshot", label: "Cricket: Pullshot" },
+  { key: "cricketSweep", label: "Cricket: Sweep" },
   { key: "bowling", label: "Cricket: Bowling" },
 ];
 
 export const ACTIVITY_BACKEND_HINT = {
-  auto: "auto", squat: "squat", pushup: "auto", coverDrive: "cricket_cover_drive", bowling: "auto",
+  auto: "auto",
+  squat: "squat",
+  pushup: "pushup",
+  coverDrive: "cricket_cover_drive",
+  cricketDrive: "cricket_cover_drive",
+  cricketLegGlanceFlick: "cricket_cover_drive",
+  cricketPullshot: "cricket_cover_drive",
+  cricketSweep: "cricket_cover_drive",
+  bowling: "bowling",
 };
 
 export const BOWLING_SPEED = {

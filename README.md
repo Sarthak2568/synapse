@@ -5,9 +5,11 @@ Hackathon-ready end-to-end project for live camera and uploaded video motion ana
 ## What It Does
 - Live camera mode and video upload mode
 - Pose detection using MoveNet in browser
-- Activity detection (auto/squat/cricket cover drive)
+- Activity detection (auto/squat/pushup/bowling/cricket cover drive)
 - Technique scoring against reference ranges
 - Deterministic coaching feedback
+- Cricket shot subtype classification with notebook labels (`drive`, `legglance-flick`, `pullshot`, `sweep`)
+- Optional CNN shot helper (`cnn_shot`) with safe fallback to pose inference
 - Optional LLM rewriting layer (`gpt-4o-mini`) for human-friendly feedback
 - Visual analytics: skeleton overlay + angle charts + metric table
 
@@ -64,6 +66,17 @@ export OPENAI_MODEL=gpt-4o-mini
 uvicorn app.main:app --app-dir backend --reload
 ```
 
+Optional CNN helper setup:
+```bash
+pip install -r backend/requirements-cnn.txt
+# train/export model artifacts to backend/models/
+python backend/ml/train_cricket_cnn.py --data-dir /path/to/cricket-dataset/data --arch mobilenet_v3_small --epochs 10
+# optional toggles
+export CNN_SHOT_ENABLED=1
+export CNN_MODEL_DIR=backend/models
+export CNN_WINDOW_SIZE=7
+```
+
 4. Open:
 - http://127.0.0.1:8000
 
@@ -101,6 +114,8 @@ docker compose up --build
   "overall_score": 82.5,
   "metrics": [],
   "feedback": [],
-  "timeline": {}
+  "timeline": {},
+  "cricket_shot": null,
+  "cnn_shot": null
 }
 ```

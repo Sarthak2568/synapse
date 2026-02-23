@@ -29,6 +29,13 @@ def biomechanics_summary(activity: str, series: dict[str, list[float]]) -> Biome
     if activity == "squat":
         force_n = mass_kg * (gravity + 0.5 * peak_accel_ms2)
         moment_arm_m = 0.40
+    elif activity == "pushup":
+        # Approximate 65% body mass effectively loaded through upper body in push-up.
+        force_n = (mass_kg * 0.65) * (gravity + 0.35 * peak_accel_ms2)
+        moment_arm_m = 0.32
+    elif activity == "bowling":
+        force_n = mass_kg * (gravity + 0.6 * peak_accel_ms2)
+        moment_arm_m = 0.60
     else:
         force_n = mass_kg * (gravity + 0.3 * peak_accel_ms2)
         moment_arm_m = 0.55

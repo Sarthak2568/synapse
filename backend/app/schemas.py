@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,7 +17,7 @@ class FramePose(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
-    activity_hint: Literal["auto", "squat", "cricket_cover_drive"] = "auto"
+    activity_hint: Literal["auto", "squat", "cricket_cover_drive", "pushup", "bowling"] = "auto"
     fps: float = 30.0
     frames: list[FramePose] = Field(..., min_length=10)
 
@@ -49,6 +49,18 @@ class BiomechanicsSummary(BaseModel):
     stability_score: float
 
 
+class CricketShotClassification(BaseModel):
+    label: Literal["drive", "legglance-flick", "pullshot", "sweep"]
+    confidence: float
+    class_scores: dict[str, float]
+
+
+class CNNShotSignal(BaseModel):
+    label: str
+    confidence: float
+    source: Literal["cnn"] = "cnn"
+
+
 class AnalysisResponse(BaseModel):
     activity: str
     overall_score: float
@@ -59,3 +71,5 @@ class AnalysisResponse(BaseModel):
     kinematics_stream: list[LiveDataPoint]
     biomechanics: BiomechanicsSummary
     joint_assessment: dict[str, str]
+    cricket_shot: Optional[CricketShotClassification] = None
+    cnn_shot: Optional[CNNShotSignal] = None

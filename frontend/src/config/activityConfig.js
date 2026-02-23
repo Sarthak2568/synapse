@@ -1,5 +1,35 @@
 import { angleABC, torsoLeanFromVertical, gradeDeviation, distanceToRange, pickWorseSeverity } from '../utils/poseUtils';
 
+const coverDriveConfig = {
+  keyJoints: [11, 12, 13, 14, 5, 6, 9, 10],
+  detectPhases(frames) {
+    return { bottomIdx: 0, phases: frames.map(() => "swing") };
+  },
+  evaluateFrame(frame) {
+    const frontKnee = angleABC(
+      frame.keypoints[11],
+      frame.keypoints[13],
+      frame.keypoints[15],
+    );
+    const kneeGrade = gradeDeviation(
+      distanceToRange(frontKnee, 110, 150),
+      0,
+      15,
+    );
+    const jointSeverity = { 13: kneeGrade.level, 15: kneeGrade.level };
+    return {
+      metrics: { frontKnee },
+      checks: { kneeGrade },
+      jointSeverity,
+      frameError: kneeGrade.score * 2,
+      reasons:
+        kneeGrade.level === "good"
+          ? []
+          : [`Front knee ${frontKnee.toFixed(1)}°`],
+    };
+  },
+};
+
 export const activityConfig = {
   squat: {
     keyJoints: [11, 12, 13, 14, 15, 16, 5, 6],
@@ -143,35 +173,11 @@ export const activityConfig = {
       };
     },
   },
-  coverDrive: {
-    keyJoints: [11, 12, 13, 14, 5, 6, 9, 10],
-    detectPhases(frames) {
-      return { bottomIdx: 0, phases: frames.map(() => "swing") };
-    },
-    evaluateFrame(frame) {
-      const frontKnee = angleABC(
-        frame.keypoints[11],
-        frame.keypoints[13],
-        frame.keypoints[15],
-      );
-      const kneeGrade = gradeDeviation(
-        distanceToRange(frontKnee, 110, 150),
-        0,
-        15,
-      );
-      const jointSeverity = { 13: kneeGrade.level, 15: kneeGrade.level };
-      return {
-        metrics: { frontKnee },
-        checks: { kneeGrade },
-        jointSeverity,
-        frameError: kneeGrade.score * 2,
-        reasons:
-          kneeGrade.level === "good"
-            ? []
-            : [`Front knee ${frontKnee.toFixed(1)}°`],
-      };
-    },
-  },
+  coverDrive: coverDriveConfig,
+  cricketDrive: coverDriveConfig,
+  cricketLegGlanceFlick: coverDriveConfig,
+  cricketPullshot: coverDriveConfig,
+  cricketSweep: coverDriveConfig,
   bowling: {
     keyJoints: [5, 6, 7, 8, 11, 12, 13, 14],
     detectPhases(frames) {

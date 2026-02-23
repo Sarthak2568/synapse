@@ -34,6 +34,10 @@ def extract_common_series(frames: list[FramePose]) -> dict[str, list[float]]:
     hip_y = [midpoint(f, "left_hip", "right_hip")[1] for f in frames]
     hip_x = [midpoint(f, "left_hip", "right_hip")[0] for f in frames]
     wrist_x = [midpoint(f, "left_wrist", "right_wrist")[0] for f in frames]
+    wrist_y = [midpoint(f, "left_wrist", "right_wrist")[1] for f in frames]
+    shoulder_y = [midpoint(f, "left_shoulder", "right_shoulder")[1] for f in frames]
+    left_elbow = [joint_angle(f, "left_shoulder", "left_elbow", "left_wrist") for f in frames]
+    right_elbow = [joint_angle(f, "right_shoulder", "right_elbow", "right_wrist") for f in frames]
 
     hip_velocity = _derivative(hip_y, timestamps)
     hip_acceleration = _derivative(hip_velocity, timestamps)
@@ -48,6 +52,10 @@ def extract_common_series(frames: list[FramePose]) -> dict[str, list[float]]:
         "hip_y": hip_y,
         "hip_x": hip_x,
         "wrist_x": wrist_x,
+        "wrist_y": wrist_y,
+        "shoulder_y": shoulder_y,
+        "left_elbow": left_elbow,
+        "right_elbow": right_elbow,
         "hip_velocity": hip_velocity,
         "hip_acceleration": hip_acceleration,
     }
@@ -105,3 +113,34 @@ def cover_drive_features_from_series(s: dict[str, list[float]], fps: float) -> d
 
 def cover_drive_features(frames: list[FramePose], fps: float) -> dict[str, float]:
     return cover_drive_features_from_series(extract_common_series(frames), fps)
+
+
+def pushup_features_from_series(s: dict[str, list[float]]) -> dict[str, float]:
+    avg_elbow = [(l + r) / 2.0 for l, r in zip(s["left_elbow"], s["right_elbow"])]
+    elbow_rom = max(avg_elbow) - min(avg_elbow)
+    torso_drift = statistics.pstdev(
+        [sh - hip for sh, hip in zip(s["shoulder_y"], s["hip_y"])]
+    ) if len(s["hip_y"]) > 1 else 0.0
+    head_stability = statistics.pstdev(s["nose_x"]) if len(s["nose_x"]) > 1 else 0.0
+
+    return {
+        "min_elbow_angle": min(avg_elbow),
+        "elbow_range_of_motion": elbow_rom,
+        "torso_line_stability": torso_drift,
+        "head_stability": head_stability,
+    }
+
+
+def bowling_features_from_series(s: dict[str, list[float]]) -> dict[str, float]:
+    release_idx = _argmin(s["wrist_y"])
+    shoulder_idx = _argmin(s["shoulder_y"])
+    release_delay = abs(release_idx - shoulder_idx) / max(len(s["timestamps"]), 1)
+    trunk_drop = max(s["trunk"]) - min(s["trunk"])
+    hip_drive = max(s["hip_velocity"]) - min(s["hip_velocity"])
+
+    return {
+        "release_height_index": 1.0 - s["wrist_y"][release_idx],
+        "trunk_rotation_span": trunk_drop,
+        "hip_drive_velocity_span": hip_drive,
+        "release_timing_index": release_delay,
+    }
