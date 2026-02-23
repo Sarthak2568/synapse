@@ -756,6 +756,30 @@ function App() {
     }
 
     s.prev = { x: wrist.x, y: wrist.y, ts: nowTs };
+
+    // New 3D Bat Tracking Data
+    const leftWrist = pose?.keypoints?.[9];
+    const rightWrist = pose?.keypoints?.[10];
+    if (leftWrist && rightWrist) {
+      // Calculate normalized center position (assuming 640x480 default TFJS video feed, will refine in Three.js)
+      const cx = (leftWrist.x + rightWrist.x) / 2;
+      const cy = (leftWrist.y + rightWrist.y) / 2;
+
+      const videoEl = liveVideoRef.current;
+      const vw = videoEl ? videoEl.videoWidth || 640 : 640;
+      const vh = videoEl ? videoEl.videoHeight || 480 : 480;
+
+      s.batPos = {
+        x: (cx / vw) * 2 - 1, // Normalized -1 to 1
+        y: -((cy / vh) * 2 - 1), // Normalized -1 to 1, flipped Y for 3D
+      };
+
+      // Calculate angle
+      s.batAngle = Math.atan2(
+        rightWrist.y - leftWrist.y,
+        rightWrist.x - leftWrist.x,
+      );
+    }
   }
 
   async function startLiveCapture() {
