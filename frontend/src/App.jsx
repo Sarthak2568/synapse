@@ -1731,153 +1731,151 @@ function App() {
           )}
         </main>
 
-        {activeNav === "analyze" && (
-          <aside className="space-y-4">
+        <aside className="space-y-4">
+          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+            <h3 className="font-heading text-lg">Performance Score</h3>
+            <CircularScore score={analysis?.overall_score || 0} />
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtxt">
+              <div className="rounded-xl border border-white/10 bg-bg p-2">
+                <p>Activity</p>
+                <strong className="text-sm text-txt">
+                  {analysis?.activity || "--"}
+                </strong>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-bg p-2">
+                <p>Status</p>
+                <strong className="text-sm text-txt">{status}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-heading text-lg">AI Coaching</h3>
+              <span className="rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
+                Prioritized
+              </span>
+            </div>
+            <div className="space-y-2">
+              {(feedbackItems.length
+                ? feedbackItems
+                : [
+                    {
+                      msg: "Run an analysis to get personalized feedback.",
+                      severity: "low",
+                    },
+                  ]
+              ).map((f, i) => (
+                <FeedbackCard key={i} msg={f.msg} severity={f.severity} />
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+            <h3 className="font-heading text-lg">Session Controls</h3>
+            <div className="mt-2 space-y-2">
+              <button
+                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                onClick={() => setShowSummary(true)}
+                disabled={!summaryData}
+              >
+                Open Session Summary
+              </button>
+              <button
+                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                onClick={exportJSON}
+                disabled={!analysis}
+              >
+                Export JSON
+              </button>
+              <button
+                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                onClick={exportCSV}
+                disabled={!analysis}
+              >
+                Export CSV
+              </button>
+            </div>
+
+            <label className="mt-3 flex items-center gap-2 text-sm text-subtxt">
+              <input
+                type="checkbox"
+                checked={coachMode}
+                onChange={(e) => setCoachMode(e.target.checked)}
+              />
+              Coach Mode (advanced)
+            </label>
+            {coachMode && (
+              <pre className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/10 bg-bg p-3 text-[11px] text-primary">
+                {rawPreview || "{}"}
+              </pre>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+            <h3 className="font-heading text-lg">Session Snapshot</h3>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl border border-white/10 bg-bg p-2">
+                <p className="text-[11px] text-subtxt">Perf.</p>
+                <strong>{homeSummary.performance}</strong>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-bg p-2">
+                <p className="text-[11px] text-subtxt">Consist.</p>
+                <strong>{homeSummary.consistency}</strong>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-bg p-2">
+                <p className="text-[11px] text-subtxt">Risk</p>
+                <strong>{homeSummary.risk}</strong>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {sessions.slice(0, 4).map((s, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-white/10 bg-bg p-2 text-xs"
+                >
+                  <div className="flex items-center justify-between text-subtxt">
+                    <span>{s.activity}</span>
+                    <span>{new Date(s.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <strong>{s.score}/100</strong>
+                    <span className="text-subtxt">Risk: {s.risk}</span>
+                  </div>
+                </div>
+              ))}
+              {!sessions.length && (
+                <p className="text-xs text-subtxt">No sessions yet.</p>
+              )}
+            </div>
+          </section>
+
+          {activeNav === "insights" && (
             <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h3 className="font-heading text-lg">Performance Score</h3>
-              <CircularScore score={analysis?.overall_score || 0} />
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtxt">
+              <h3 className="font-heading text-lg">Insights</h3>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p>Activity</p>
-                  <strong className="text-sm text-txt">
-                    {analysis?.activity || "--"}
+                  <p className="text-[11px] text-subtxt">Best</p>
+                  <strong>
+                    {sessions.length
+                      ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
+                      : "--"}
                   </strong>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p>Status</p>
-                  <strong className="text-sm text-txt">{status}</strong>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-heading text-lg">AI Coaching</h3>
-                <span className="rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
-                  Prioritized
-                </span>
-              </div>
-              <div className="space-y-2">
-                {(feedbackItems.length
-                  ? feedbackItems
-                  : [
-                      {
-                        msg: "Run an analysis to get personalized feedback.",
-                        severity: "low",
-                      },
-                    ]
-                ).map((f, i) => (
-                  <FeedbackCard key={i} msg={f.msg} severity={f.severity} />
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h3 className="font-heading text-lg">Session Controls</h3>
-              <div className="mt-2 space-y-2">
-                <button
-                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                  onClick={() => setShowSummary(true)}
-                  disabled={!summaryData}
-                >
-                  Open Session Summary
-                </button>
-                <button
-                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                  onClick={exportJSON}
-                  disabled={!analysis}
-                >
-                  Export JSON
-                </button>
-                <button
-                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                  onClick={exportCSV}
-                  disabled={!analysis}
-                >
-                  Export CSV
-                </button>
-              </div>
-
-              <label className="mt-3 flex items-center gap-2 text-sm text-subtxt">
-                <input
-                  type="checkbox"
-                  checked={coachMode}
-                  onChange={(e) => setCoachMode(e.target.checked)}
-                />
-                Coach Mode (advanced)
-              </label>
-              {coachMode && (
-                <pre className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/10 bg-bg p-3 text-[11px] text-primary">
-                  {rawPreview || "{}"}
-                </pre>
-              )}
-            </section>
-
-            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h3 className="font-heading text-lg">Session Snapshot</h3>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Perf.</p>
-                  <strong>{homeSummary.performance}</strong>
+                  <p className="text-[11px] text-subtxt">Avg</p>
+                  <strong>
+                    {sessions.length ? avgScore.toFixed(1) : "--"}
+                  </strong>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Consist.</p>
-                  <strong>{homeSummary.consistency}</strong>
+                  <p className="text-[11px] text-subtxt">Total</p>
+                  <strong>{sessions.length}</strong>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Risk</p>
-                  <strong>{homeSummary.risk}</strong>
-                </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                {sessions.slice(0, 4).map((s, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl border border-white/10 bg-bg p-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between text-subtxt">
-                      <span>{s.activity}</span>
-                      <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <strong>{s.score}/100</strong>
-                      <span className="text-subtxt">Risk: {s.risk}</span>
-                    </div>
-                  </div>
-                ))}
-                {!sessions.length && (
-                  <p className="text-xs text-subtxt">No sessions yet.</p>
-                )}
               </div>
             </section>
-
-            {activeNav === "insights" && (
-              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-                <h3 className="font-heading text-lg">Insights</h3>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl border border-white/10 bg-bg p-2">
-                    <p className="text-[11px] text-subtxt">Best</p>
-                    <strong>
-                      {sessions.length
-                        ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
-                        : "--"}
-                    </strong>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-bg p-2">
-                    <p className="text-[11px] text-subtxt">Avg</p>
-                    <strong>
-                      {sessions.length ? avgScore.toFixed(1) : "--"}
-                    </strong>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-bg p-2">
-                    <p className="text-[11px] text-subtxt">Total</p>
-                    <strong>{sessions.length}</strong>
-                  </div>
-                </div>
-              </section>
-            )}
-          </aside>
-        )}
+          )}
+        </aside>
       </div>
     </div>
   );
