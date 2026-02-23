@@ -1,30 +1,74 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import * as THREE from 'three';
-import { Chart } from 'chart.js/auto'; // Ensure Chart.js is imported
-import { COLORS, NAV_ITEMS, ACTIVITY_OPTIONS, BOWLING_SPEED, ACTIVITY_BACKEND_HINT } from './utils/constants';
-import { loadScript, clamp, scoreColor, severityRank, angleABC, torsoLeanFromVertical, gradeDeviation, distanceToRange, pickWorseSeverity, statusPill, stabilizePose, drawAnatomyCore, clonePose, fitPoseToCanvas, poseBounds, confidence, inferLiveSquatPhase, sleep } from './utils/poseUtils';
-import { activityConfig, getWorstFrame } from './config/activityConfig';
-import { useCricketSimulation } from './hooks/useCricketSimulation';
-import { Navbar } from './components/layout/Navbar';
-import { Sidebar } from './components/layout/Sidebar';
-import { TinySparkline } from './components/shared/TinySparkline';
-import { CircularScore } from './components/shared/CircularScore';
-import { MetricsCard } from './components/shared/MetricsCard';
-import { FeedbackCard } from './components/shared/FeedbackCard';
-import { SessionModal } from './components/shared/SessionModal';
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import * as THREE from "three";
+import { Chart } from "chart.js/auto"; // Ensure Chart.js is imported
+import {
+  COLORS,
+  NAV_ITEMS,
+  ACTIVITY_OPTIONS,
+  BOWLING_SPEED,
+  ACTIVITY_BACKEND_HINT,
+} from "./utils/constants";
+import {
+  loadScript,
+  clamp,
+  scoreColor,
+  severityRank,
+  angleABC,
+  torsoLeanFromVertical,
+  gradeDeviation,
+  distanceToRange,
+  pickWorseSeverity,
+  statusPill,
+  stabilizePose,
+  drawAnatomyCore,
+  clonePose,
+  fitPoseToCanvas,
+  poseBounds,
+  confidence,
+  inferLiveSquatPhase,
+  sleep,
+} from "./utils/poseUtils";
+import { activityConfig, getWorstFrame } from "./config/activityConfig";
+import { useCricketSimulation } from "./hooks/useCricketSimulation";
+import { Navbar } from "./components/layout/Navbar";
+import { Sidebar } from "./components/layout/Sidebar";
+import { TinySparkline } from "./components/shared/TinySparkline";
+import { CircularScore } from "./components/shared/CircularScore";
+import { MetricsCard } from "./components/shared/MetricsCard";
+import { FeedbackCard } from "./components/shared/FeedbackCard";
+import { SessionModal } from "./components/shared/SessionModal";
 
 const FULL_SKELETON_EDGES = [
-  [0, 1], [0, 2], [1, 3], [2, 4], [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
-  [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+  [0, 1],
+  [0, 2],
+  [1, 3],
+  [2, 4],
+  [5, 6],
+  [5, 7],
+  [7, 9],
+  [6, 8],
+  [8, 10],
+  [5, 11],
+  [6, 12],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
 ];
 
 const KEYPOINT_INDEX = {
   nose: 0,
-  left_shoulder: 5, right_shoulder: 6,
-  left_hip: 11, right_hip: 12,
-  left_knee: 13, right_knee: 14,
-  left_ankle: 15, right_ankle: 16,
-  left_wrist: 9, right_wrist: 10,
+  left_shoulder: 5,
+  right_shoulder: 6,
+  left_hip: 11,
+  right_hip: 12,
+  left_knee: 13,
+  right_knee: 14,
+  left_ankle: 15,
+  right_ankle: 16,
+  left_wrist: 9,
+  right_wrist: 10,
 };
 
 // We redefine drawSkeleton here since it relies on FULL_SKELETON_EDGES and statusPill etc.
@@ -1112,7 +1156,9 @@ function App() {
           </nav>
         </aside>
 
-        <main className="space-y-4">
+        <main
+          className={`space-y-4 ${activeNav === "analyze" ? "" : "lg:col-span-2"}`}
+        >
           {activeNav === "home" && (
             <>
               <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
@@ -1589,6 +1635,36 @@ function App() {
                   </div>
                 </div>
 
+                {cricketModeEnabled && (
+                  <div className="mt-4 rounded-2xl border border-primary/25 bg-bg p-3">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="font-heading text-sm">
+                        3D Interactive Stadium
+                      </h4>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`inline-flex h-2.5 w-2.5 rounded-full ${cricketSceneReady ? "bg-secondary" : "bg-warn"}`}
+                        />
+                        <span className="text-subtxt">
+                          {cricketSceneReady ? "Scene Ready" : "Loading Scene"}
+                        </span>
+                        {cricketResult.reactionMs != null && (
+                          <>
+                            <span className="text-subtxt">•</span>
+                            <span className="text-subtxt">
+                              Reaction {cricketResult.reactionMs} ms
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      ref={cricketSceneMountRef}
+                      className="h-[260px] w-full overflow-hidden rounded-xl border border-white/10 bg-black"
+                    />
+                  </div>
+                )}
+
                 <div className="mt-4 rounded-2xl border border-white/10 bg-bg p-3">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <h4 className="font-heading text-sm">
@@ -1655,155 +1731,156 @@ function App() {
           )}
         </main>
 
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Performance Score</h3>
-            <CircularScore score={analysis?.overall_score || 0} />
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtxt">
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p>Activity</p>
-                <strong className="text-sm text-txt">
-                  {analysis?.activity || "--"}
-                </strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p>Status</p>
-                <strong className="text-sm text-txt">{status}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-heading text-lg">AI Coaching</h3>
-              <span className="rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
-                Prioritized
-              </span>
-            </div>
-            <div className="space-y-2">
-              {(feedbackItems.length
-                ? feedbackItems
-                : [
-                    {
-                      msg: "Run an analysis to get personalized feedback.",
-                      severity: "low",
-                    },
-                  ]
-              ).map((f, i) => (
-                <FeedbackCard key={i} msg={f.msg} severity={f.severity} />
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Session Controls</h3>
-            <div className="mt-2 space-y-2">
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={() => setShowSummary(true)}
-                disabled={!summaryData}
-              >
-                Open Session Summary
-              </button>
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={exportJSON}
-                disabled={!analysis}
-              >
-                Export JSON
-              </button>
-              <button
-                className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
-                onClick={exportCSV}
-                disabled={!analysis}
-              >
-                Export CSV
-              </button>
-            </div>
-
-            <label className="mt-3 flex items-center gap-2 text-sm text-subtxt">
-              <input
-                type="checkbox"
-                checked={coachMode}
-                onChange={(e) => setCoachMode(e.target.checked)}
-              />
-              Coach Mode (advanced)
-            </label>
-            {coachMode && (
-              <pre className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/10 bg-bg p-3 text-[11px] text-primary">
-                {rawPreview || "{}"}
-              </pre>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-            <h3 className="font-heading text-lg">Session Snapshot</h3>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Perf.</p>
-                <strong>{homeSummary.performance}</strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Consist.</p>
-                <strong>{homeSummary.consistency}</strong>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-bg p-2">
-                <p className="text-[11px] text-subtxt">Risk</p>
-                <strong>{homeSummary.risk}</strong>
-              </div>
-            </div>
-            <div className="mt-3 space-y-2">
-              {sessions.slice(0, 4).map((s, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl border border-white/10 bg-bg p-2 text-xs"
-                >
-                  <div className="flex items-center justify-between text-subtxt">
-                    <span>{s.activity}</span>
-                    <span>{new Date(s.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between">
-                    <strong>{s.score}/100</strong>
-                    <span className="text-subtxt">Risk: {s.risk}</span>
-                  </div>
-                </div>
-              ))}
-              {!sessions.length && (
-                <p className="text-xs text-subtxt">No sessions yet.</p>
-              )}
-            </div>
-          </section>
-
-          {activeNav === "insights" && (
+        {activeNav === "analyze" && (
+          <aside className="space-y-4">
             <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
-              <h3 className="font-heading text-lg">Insights</h3>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+              <h3 className="font-heading text-lg">Performance Score</h3>
+              <CircularScore score={analysis?.overall_score || 0} />
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-subtxt">
                 <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Best</p>
-                  <strong>
-                    {sessions.length
-                      ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
-                      : "--"}
+                  <p>Activity</p>
+                  <strong className="text-sm text-txt">
+                    {analysis?.activity || "--"}
                   </strong>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Avg</p>
-                  <strong>
-                    {sessions.length ? avgScore.toFixed(1) : "--"}
-                  </strong>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-bg p-2">
-                  <p className="text-[11px] text-subtxt">Total</p>
-                  <strong>{sessions.length}</strong>
+                  <p>Status</p>
+                  <strong className="text-sm text-txt">{status}</strong>
                 </div>
               </div>
             </section>
-          )}
-        </aside>
+
+            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-heading text-lg">AI Coaching</h3>
+                <span className="rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
+                  Prioritized
+                </span>
+              </div>
+              <div className="space-y-2">
+                {(feedbackItems.length
+                  ? feedbackItems
+                  : [
+                      {
+                        msg: "Run an analysis to get personalized feedback.",
+                        severity: "low",
+                      },
+                    ]
+                ).map((f, i) => (
+                  <FeedbackCard key={i} msg={f.msg} severity={f.severity} />
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+              <h3 className="font-heading text-lg">Session Controls</h3>
+              <div className="mt-2 space-y-2">
+                <button
+                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                  onClick={() => setShowSummary(true)}
+                  disabled={!summaryData}
+                >
+                  Open Session Summary
+                </button>
+                <button
+                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                  onClick={exportJSON}
+                  disabled={!analysis}
+                >
+                  Export JSON
+                </button>
+                <button
+                  className="btn-press w-full rounded-xl border border-white/15 bg-bg px-3 py-2 text-sm text-subtxt"
+                  onClick={exportCSV}
+                  disabled={!analysis}
+                >
+                  Export CSV
+                </button>
+              </div>
+
+              <label className="mt-3 flex items-center gap-2 text-sm text-subtxt">
+                <input
+                  type="checkbox"
+                  checked={coachMode}
+                  onChange={(e) => setCoachMode(e.target.checked)}
+                />
+                Coach Mode (advanced)
+              </label>
+              {coachMode && (
+                <pre className="mt-2 max-h-44 overflow-auto rounded-xl border border-white/10 bg-bg p-3 text-[11px] text-primary">
+                  {rawPreview || "{}"}
+                </pre>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+              <h3 className="font-heading text-lg">Session Snapshot</h3>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-xl border border-white/10 bg-bg p-2">
+                  <p className="text-[11px] text-subtxt">Perf.</p>
+                  <strong>{homeSummary.performance}</strong>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-bg p-2">
+                  <p className="text-[11px] text-subtxt">Consist.</p>
+                  <strong>{homeSummary.consistency}</strong>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-bg p-2">
+                  <p className="text-[11px] text-subtxt">Risk</p>
+                  <strong>{homeSummary.risk}</strong>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {sessions.slice(0, 4).map((s, i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl border border-white/10 bg-bg p-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between text-subtxt">
+                      <span>{s.activity}</span>
+                      <span>{new Date(s.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between">
+                      <strong>{s.score}/100</strong>
+                      <span className="text-subtxt">Risk: {s.risk}</span>
+                    </div>
+                  </div>
+                ))}
+                {!sessions.length && (
+                  <p className="text-xs text-subtxt">No sessions yet.</p>
+                )}
+              </div>
+            </section>
+
+            {activeNav === "insights" && (
+              <section className="rounded-2xl border border-white/10 bg-card p-4 card-hover">
+                <h3 className="font-heading text-lg">Insights</h3>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl border border-white/10 bg-bg p-2">
+                    <p className="text-[11px] text-subtxt">Best</p>
+                    <strong>
+                      {sessions.length
+                        ? Math.max(...sessions.map((s) => s.score)).toFixed(1)
+                        : "--"}
+                    </strong>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-bg p-2">
+                    <p className="text-[11px] text-subtxt">Avg</p>
+                    <strong>
+                      {sessions.length ? avgScore.toFixed(1) : "--"}
+                    </strong>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-bg p-2">
+                    <p className="text-[11px] text-subtxt">Total</p>
+                    <strong>{sessions.length}</strong>
+                  </div>
+                </div>
+              </section>
+            )}
+          </aside>
+        )}
       </div>
     </div>
   );
 }
-
 
 export default App;
