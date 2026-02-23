@@ -80,7 +80,7 @@ def analyze(payload: AnalysisRequest) -> AnalysisResponse:
     )
 
 
-if FRONTEND_DIR.exists():
+if FRONTEND_DIR.exists() and (FRONTEND_DIR / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
 
 
